@@ -1,0 +1,47 @@
+[package]
+name = "forge-indexer"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+forge_walker.workspace = true
+anyhow.workspace = true
+async-trait.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+tree-sitter.workspace = true
+tree-sitter-rust.workspace = true
+tree-sitter-python.workspace = true
+tree-sitter-typescript.workspace = true
+tree-sitter-css.workspace = true
+tree-sitter-java.workspace = true
+tree-sitter-scala.workspace = true
+tree-sitter-go.workspace = true
+tree-sitter-cpp.workspace = true
+tree-sitter-ruby.workspace = true
+notify = "6.1.1"
+
+ignore = "0.4.20"
+sha2 = "0.10.8"
+qdrant-client = "1.15.0"
+reqwest = { workspace = true, features = ["json"] }
+clap = { workspace = true, features = ["derive"] }
+futures.workspace = true
+# HTTP server dependencies
+axum = { workspace = true, features = ["macros"] }
+tower = { workspace = true, features = ["util"] }
+tower-http = { workspace = true, features = ["cors", "trace"] }
+# Configuration and observability
+config = "0.14.1"
+uuid = { version = "1.11.0", features = ["v4", "serde"] }
+metrics = "0.24.0"
+metrics-exporter-prometheus = "0.16.0"
+
+[dev-dependencies]
+pretty_assertions.workspace = true
+insta.workspace = true
+tempfile.workspace = true

@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package forge.indexer;
+
+// RetrievalRequest represents a request to retrieve relevant code chunks
+message RetrievalRequest {
+  string query = 1;
+  string repo = 2;
+  string branch = 3;
+  string user_id = 4;
+  map<string, string> file_hashes = 5; // path -> sha256
+  int32 k = 6;
+  bool exact_search = 7;
+}
+
+// RetrievalResponse represents the response to a retrieval request
+message RetrievalResponse {
+  repeated RetrievedChunk chunks = 1;
+}
+
+// RetrievedChunk represents a chunk returned in a retrieval response
+message RetrievedChunk {
+  string code = 1;
+  string path = 2;
+  float score = 3;
+  string chunk_hash = 4;
+}

@@ -12,11 +12,13 @@ strip = true
 anyhow = "1.0.95"
 async-recursion = "1.1.1"
 async-trait = "0.1.86"
+axum = { version = "0.7.9", features = ["macros"] }
 base64 = "0.22.1"
 bytes = "1.10.0"
 chrono = { version = "0.4.39", features = ["serde"] }
 clap = { version = "4.5.42", features = ["derive"] }
 colored = "3.0.0"
+config = "0.14.1"
 console = "0.16.0"
 inquire = "0.7.5"
 convert_case = "0.8.0"
@@ -41,10 +43,14 @@ indexmap = "2.7.1"
 insta = { version = "1.42.0", features = ["json"] }
 lazy_static = "1.4.0"
 machineid-rs = "1.2.4"
+metrics = "0.24.0"
+metrics-exporter-prometheus = "0.16.0"
 mockito = "1.6.1"
 moka2 = "0.13"
+ndarray = "0.16.1"
 nom = "8.0.0"
 nu-ansi-term = "0.50.1"
+ort = "2.0.0-rc.5"
 posthog-rs = { git = "https://github.com/PostHog/posthog-rs.git", rev = "a006a81419031e4889d9c3882d7458d2efa588a8" }
 pretty_assertions = "1.4.1"
 proc-macro2 = "1.0"
@@ -72,9 +78,12 @@ sysinfo = "0.36.1"
 tempfile = "3.10.1"
 termimad = "0.33.0"
 thiserror = "2.0.11"
+tokenizers = "0.20.3"
 tokio = { version = "1.47.1", features = ["full", "test-util"] }
 tokio-stream = "0.1.17"
 tokio-util = "0.7"
+tower = { version = "0.5.2", features = ["util"] }
+tower-http = { version = "0.6.6", features = ["cors", "trace"] }
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter", "json"] }
@@ -131,4 +140,11 @@ forge_template = { path = "crates/forge_template" }
 forge_tool_macros = { path = "crates/forge_tool_macros" }
 forge_tracker = { path = "crates/forge_tracker" }
 forge_walker = { path = "crates/forge_walker" }
+
+
+# Local dependency override to fix rand compatibility
 forge_json_repair = { path = "crates/forge_json_repair" }
+
+
+# Indexer crate
+forge-indexer = { path = "crates/forge-indexer" }

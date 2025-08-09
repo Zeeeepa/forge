@@ -92,3 +92,16 @@ pub use transformer::*;
 pub use update::*;
 pub use workflow::*;
 pub use xml::*;
+
+// Indexing and embedding modules
+mod chunking;
+mod code_chunk;
+mod embedding;
+mod indexing;
+mod search;
+
+pub use chunking::*;
+pub use code_chunk::*;
+pub use embedding::*;
+pub use indexing::*;
+pub use search::*;

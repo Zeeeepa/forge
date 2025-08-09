@@ -1,0 +1,32 @@
+FROM rust:1.78 as builder
+
+WORKDIR /app
+
+# Copy the Cargo.toml and Cargo.lock files
+COPY Cargo.toml Cargo.lock ./
+
+# Copy the src directory
+COPY src ./src
+
+# Copy the crates directory
+COPY crates ./crates
+
+# Build the application
+RUN cargo build --release --bin retrieval-api
+
+# Production stage
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy the binary from the builder stage
+COPY --from=builder /app/target/release/retrieval-api ./retrieval-api
+
+# Copy the proto directory
+COPY proto ./proto
+
+EXPOSE 8080
+
+CMD ["./retrieval-api"]

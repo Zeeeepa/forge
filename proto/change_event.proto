@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package forge.indexer;
+
+// ChangeEvent represents a file change in a repository
+message ChangeEvent {
+  string repo = 1;
+  string branch = 2;
+  string user_id = 3;
+  repeated string paths = 4;  // modified files
+  string sha = 5;              // git commit hash (HEAD)
+}
