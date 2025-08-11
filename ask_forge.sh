@@ -21,7 +21,7 @@ echo "🤖 Asking ForgeCode: $QUERY"
 echo ""
 
 # Use curl to query the API
-curl -s -X POST http://localhost:8080/retrieve \
+curl -s -X POST http://localhost:3014/retrieve \
   -H "Content-Type: application/json" \
   -d "{
     \"query\": \"$QUERY\",

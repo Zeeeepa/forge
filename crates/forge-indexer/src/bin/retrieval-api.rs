@@ -52,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
         .with_state(app_state);
 
     // Start server
-    let addr = SocketAddr::from(([0, 0, 0, 0], 8080));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3014));
     info!("Forge Retrieval API listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
