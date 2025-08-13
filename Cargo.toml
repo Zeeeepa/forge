@@ -148,3 +148,5 @@ forge_json_repair = { path = "crates/forge_json_repair" }
 
 # Indexer crate
 forge-indexer = { path = "crates/forge-indexer" }
+
+text-splitter = "0.3"

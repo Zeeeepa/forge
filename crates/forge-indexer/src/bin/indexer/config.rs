@@ -24,12 +24,22 @@ pub fn load_config_from_args(args: &IndexArgs) -> Result<PipelineConfig> {
         }
     };
 
+    // If using OpenAI embedder, automatically use API key from environment if not provided
+    if matches!(config.embedder_type, EmbedderType::OpenAI) && config.openai_api_key.is_none() {
+        if let Ok(api_key) = std::env::var("OPENAI_API_KEY") {
+            config.openai_api_key = Some(api_key);
+        }
+    };
+
     // Configure OpenAI API key if using OpenAI embedder
     if matches!(
         config.embedder_type,
         EmbedderType::OpenAI | EmbedderType::Hybrid
     ) {
-        config.openai_api_key = args.openai_api_key.clone();
+        // Only override with CLI argument if it's provided
+        if args.openai_api_key.is_some() {
+            config.openai_api_key = args.openai_api_key.clone();
+        }
         if config.openai_api_key.is_none() {
             return Err(anyhow::anyhow!(
                 "OPENAI_API_KEY environment variable or --openai-api-key argument required for OpenAI embedder"

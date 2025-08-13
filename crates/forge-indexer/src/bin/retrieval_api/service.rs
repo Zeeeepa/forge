@@ -1,4 +1,4 @@
-use forge_indexer::proto::{RetrievalRequest, RetrievalResponse, RetrievedChunk};
+use forge_indexer::proto::{RetrievalRequest, RetrievalResponse};
 use forge_indexer::{ForgeIndexerError, Result as ForgeResult};
 use tracing::{error, info};
 
@@ -40,21 +40,10 @@ pub async fn handle_retrieval_request(
         search_results.len()
     );
 
-    // Convert to response format
-    let final_results: Vec<RetrievedChunk> = search_results
-        .into_iter()
-        .map(|(chunk, score)| {
-            info!("Result: path={}, score={:.4}", chunk.path, score);
-            RetrievedChunk {
-                code: chunk.code,
-                path: chunk.path,
-                score,
-                chunk_hash: chunk.id,
-            }
-        })
-        .collect();
+    // Convert to response format - just return what the database gives us
+    let chunks: Vec<_> = search_results.into_iter().map(|(chunk, _score)| chunk).collect();
 
-    info!("Returning {} chunks to client", final_results.len());
+    info!("Returning {} chunks to client", chunks.len());
 
-    Ok(RetrievalResponse { chunks: final_results })
+    Ok(RetrievalResponse { chunks })
 }

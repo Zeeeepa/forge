@@ -37,7 +37,11 @@ pub enum EmbedderType {
 impl Default for PipelineConfig {
     fn default() -> Self {
         Self {
-            embedder_type: EmbedderType::OpenAI,
+            embedder_type: if std::env::var("OPENAI_API_KEY").is_ok() {
+                EmbedderType::OpenAI
+            } else {
+                EmbedderType::Local
+            },
             openai_api_key: None,
             local_model_path: None,
             local_tokenizer_path: None,
@@ -321,6 +325,10 @@ impl IndexingPipeline {
     }
 
     pub async fn new(config: PipelineConfig) -> Result<Self> {
+        Self::new_with_walker(config, Walker::min_all()).await
+    }
+
+    pub async fn new_with_walker(config: PipelineConfig, walker: Walker) -> Result<Self> {
         info!(
             "🔧 Initializing IndexingPipeline with embedder type: {:?}",
             config.embedder_type
@@ -340,9 +348,10 @@ impl IndexingPipeline {
         info!("🤖 Initializing embedder: {:?}", config.embedder_type);
         let embedder: Arc<dyn Embedder> = match config.embedder_type {
             EmbedderType::OpenAI => {
-                let _api_key = config.openai_api_key.clone().ok_or_else(|| {
-                    anyhow::anyhow!("OpenAI API key required for OpenAI embedder")
-                })?;
+                // Check if API key is provided in config or environment
+                if config.openai_api_key.is_none() && std::env::var("OPENAI_API_KEY").is_err() {
+                    return Err(anyhow::anyhow!("OpenAI API key required for OpenAI embedder. Set OPENAI_API_KEY environment variable or use --openai-api-key argument"));
+                }
                 info!("🔗 Using OpenAI embedder");
                 Arc::new(OpenAIEmbedder::new().await?)
             }
@@ -377,7 +386,7 @@ impl IndexingPipeline {
 
         // Create a walker instance
         let walker = Some(
-            Walker::min_all().cwd(std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))),
+            walker.cwd(std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))),
         );
 
         info!("✅ IndexingPipeline initialization complete");
@@ -610,6 +619,7 @@ impl IndexingPipeline {
                             chunk.code.len(),
                             chunk.symbol
                         );
+                        debug!("   Chunk {} content preview: {}", i, chunk.code.lines().take(3).collect::<Vec<_>>().join("\n"));
                     }
                     if chunks.len() > 3 {
                         info!("   ... and {} more chunks", chunks.len() - 3);

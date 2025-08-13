@@ -1,6 +1,12 @@
 #!/bin/bash
 
 # Simple script to query the indexed ForgeCode project
+#
+# When OPENAI_API_KEY is set in the environment, both the indexer and
+# retrieval API will automatically use OpenAI embeddings for better quality results.
+# API calls are logged with detailed information for debugging and monitoring.
+# Chunk size has been reduced to 500 characters with fallback logic for better search results.
+# Otherwise, they fall back to local embeddings.
 
 QUERY="$1"
 NUM_RESULTS="${2:-10}"
@@ -48,7 +54,7 @@ try:
     print('\\n' + '='*80)
     
     for i, chunk in enumerate(data['chunks'], 1):
-        print(f'\\n📄 Result {i} - {chunk[\"path\"]} (Score: {chunk[\"score\"]:.4f})')
+        print(f'\\n📄 Result {i} - {chunk[\"path\"]}')
         print('-' * 60)
         print(chunk['code'])
         print('-' * 60)

@@ -11,7 +11,7 @@ pub struct ChangeEvent {
 }
 
 /// Chunk represents a code chunk with its metadata
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize)]
 pub struct Chunk {
     pub id: String,
     pub path: String,
@@ -38,14 +38,5 @@ pub struct RetrievalRequest {
 /// RetrievalResponse represents the response to a retrieval request
 #[derive(Debug, Clone)]
 pub struct RetrievalResponse {
-    pub chunks: Vec<RetrievedChunk>,
-}
-
-/// RetrievedChunk represents a chunk returned in a retrieval response
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct RetrievedChunk {
-    pub code: String,
-    pub path: String,
-    pub score: f32,
-    pub chunk_hash: String,
+    pub chunks: Vec<Chunk>,
 }

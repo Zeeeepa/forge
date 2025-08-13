@@ -13,10 +13,11 @@ pub async fn run_reset(embedder_type: String) -> Result<()> {
     // Create embedder to get dimensions
     let embedder: Arc<dyn Embedder> = match embedder_type.as_str() {
         "openai" => {
-            let api_key = std::env::var("OPENAI_API_KEY").map_err(|_| {
-                anyhow::anyhow!("OPENAI_API_KEY environment variable required for OpenAI embedder")
-            })?;
-            Arc::new(OpenAIEmbedder::new_with_config(api_key, None))
+            // Check if API key is available in environment or fail gracefully
+            if std::env::var("OPENAI_API_KEY").is_err() {
+                return Err(anyhow::anyhow!("OPENAI_API_KEY environment variable required for OpenAI embedder"));
+            }
+            Arc::new(OpenAIEmbedder::new().await?)
         }
         "local" => Arc::new(LocalEmbedder::new_default()?),
         _ => {

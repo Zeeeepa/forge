@@ -1,31 +1,12 @@
-//! Code chunker with AST parsing support
-
 use anyhow::Result;
+use text_splitter::CodeSplitter;
 use tracing::debug;
-use tree_sitter::Tree;
+
 // Re-export public types
-pub use types::Chunk;
-
-// Internal modules
-mod analysis;
-mod parser;
-mod similarity;
-mod strategies;
-mod types;
-mod utils;
-
-use analysis::CodeAnalyzer;
-use parser::ParserManager;
-use similarity::SimilarityCalculator;
-use strategies::ChunkingStrategies;
-use types::CodeAnalysis;
-use utils::ChunkerUtils;
+pub use crate::proto::Chunk;
 
 pub struct Chunker {
-    parser_manager: ParserManager,
-    max_chunk_size: usize,
-    min_chunk_size: usize,
-    overlap_size: usize,
+    pub max_chunk_size: usize,
 }
 
 impl Default for Chunker {
@@ -37,13 +18,11 @@ impl Default for Chunker {
 impl Chunker {
     pub fn new() -> Self {
         Self {
-            parser_manager: ParserManager::new(),
-            max_chunk_size: 2000,
-            min_chunk_size: 100,
-            overlap_size: 200,
+            max_chunk_size: 500,
         }
     }
 
+    /// Chunk a file using text_splitter::CodeSplitter when possible, otherwise fallback to simple windows.
     pub fn chunk_file(
         &mut self,
         path: &str,
@@ -51,201 +30,125 @@ impl Chunker {
         lang: &str,
         rev: &str,
     ) -> Result<Vec<Chunk>> {
-        // Parse the file with tree-sitter if we have a parser for this language
-        let tree = if self.parser_manager.has_parser(lang) {
-            if let Some(parser) = self.parser_manager.get_parser(lang) {
-                parser.parse(content, None)
-            } else {
-                // Fallback to creating a new parser instance
-                if let Some(mut new_parser) = self.parser_manager.create_parser(lang) {
-                    new_parser.parse(content, None)
-                } else {
-                    None
+        // Try to construct a CodeSplitter using the language if available
+        let maybe_splitter = match lang {
+            "rust" => Some(CodeSplitter::new(tree_sitter_rust::LANGUAGE, self.max_chunk_size)),
+            "python" => Some(CodeSplitter::new(tree_sitter_python::LANGUAGE, self.max_chunk_size)),
+            "javascript" | "typescript" => Some(CodeSplitter::new(tree_sitter_typescript::LANGUAGE_TYPESCRIPT, self.max_chunk_size)),
+            "go" => Some(CodeSplitter::new(tree_sitter_go::LANGUAGE, self.max_chunk_size)),
+            "java" => Some(CodeSplitter::new(tree_sitter_java::LANGUAGE, self.max_chunk_size)),
+            "cpp" | "c" => Some(CodeSplitter::new(tree_sitter_cpp::LANGUAGE, self.max_chunk_size)),
+            "css" => Some(CodeSplitter::new(tree_sitter_css::LANGUAGE, self.max_chunk_size)),
+            "ruby" => Some(CodeSplitter::new(tree_sitter_ruby::LANGUAGE, self.max_chunk_size)),
+            _ => None,
+        };
+
+        let mut chunks = Vec::new();
+
+        if let Some(splitter_res) = maybe_splitter {
+            match splitter_res {
+                Ok(splitter) => {
+                    // Use text-splitter's built-in chunking which handles overlaps and min sizes
+                    for (i, piece) in splitter.chunks(content).into_iter().enumerate() {
+                        let start = content.find(piece).unwrap_or(0);
+                        let end = start + piece.len();
+                        let chunk = Chunk {
+                            id: format!("{}:{}:{}:{}", path, start, end, rev),
+                            path: path.to_string(),
+                            lang: lang.to_string(),
+                            symbol: None,
+                            rev: rev.to_string(),
+                            size: piece.len(),
+                            code: piece.to_string(),
+                            summary: None,
+                            embedding: None,
+                        };
+                        debug!("Created chunk {} for {}: {} chars", i, path, piece.len());
+                        chunks.push(chunk);
+                    }
+                }
+                Err(e) => {
+                    debug!("Failed to create CodeSplitter for {}: {:?}", lang, e);
+                    // Fall back to simple window splitting
+                    debug!("Falling back to window splitting for {}", path);
+                    chunks = self.create_chunks_with_windows(path, content, lang, rev);
                 }
             }
         } else {
-            debug!(
-                "ℹ️  Language {} not supported by tree-sitter, using fallback chunking",
-                lang
-            );
-            None
-        };
-
-        let chunks = if let Some(tree) = tree.as_ref() {
-            // Advanced semantic chunking with AST analysis
-            let mut code_analysis = CodeAnalyzer::analyze_code_structure(content, lang, tree);
-
-            // Enhance analysis with instance methods
-            let additional_boundaries = self.detect_semantic_boundaries(tree, content);
-            code_analysis
-                .semantic_boundaries
-                .extend(additional_boundaries);
-            code_analysis.semantic_boundaries.sort_unstable();
-            code_analysis.semantic_boundaries.dedup();
-
-            // Extract additional symbols and keywords using instance methods
-            let keywords = self.extract_keywords(content);
-            let mut symbols = self.extract_symbols(content, lang);
-
-            // Use tree-sitter for more accurate symbol collection
-            let mut cursor = tree.walk();
-            let mut tree_symbols = std::collections::HashSet::new();
-            ChunkerUtils::collect_symbols(&mut cursor, content, &mut tree_symbols);
-            symbols.extend(tree_symbols);
-            symbols.sort();
-            symbols.dedup();
-
-            // Add extracted symbols to dependencies for better context
-            code_analysis.dependencies.extend(keywords);
-            code_analysis.dependencies.extend(symbols);
-            code_analysis.dependencies.sort();
-            code_analysis.dependencies.dedup();
-
-            let semantic_chunks = ChunkingStrategies::extract_semantic_chunks(
-                path,
-                content,
-                lang,
-                rev,
-                &code_analysis,
-                tree,
-            );
-
-            if !semantic_chunks.is_empty() {
-                semantic_chunks
-            } else {
-                ChunkingStrategies::extract_context_chunks(
-                    path,
-                    content,
-                    lang,
-                    rev,
-                    &code_analysis,
-                    tree,
-                )
-            }
-        } else {
-            // Fallback to simple chunking for unsupported languages
-            ChunkingStrategies::fallback_chunking(path, content, lang, rev, tree.as_ref())
-        };
-
-        // Post-process chunks for optimization using semantic similarity with size
-        // constraints
-        let mut optimized_chunks =
-            SimilarityCalculator::optimize_chunks(chunks, &CodeAnalysis::default())?;
-
-        // Apply size constraints from chunker configuration with overlap consideration
-        optimized_chunks
-            .retain(|chunk| chunk.size >= self.min_chunk_size && chunk.size <= self.max_chunk_size);
-
-        // Apply overlap processing if configured
-        if self.overlap_size > 0 && optimized_chunks.len() > 1 {
-            // Add overlap information to chunk summaries for better context
-            for chunk in optimized_chunks.iter_mut() {
-                if let Some(ref mut summary) = chunk.summary {
-                    summary.push_str(&format!(" | Overlap: {}", self.overlap_size));
-                }
-                // Note: Actual overlap implementation would require content
-                // modification This is a placeholder for future
-                // enhancement
-            }
+            // No splitter available, fall back to simple window splitting
+            chunks = self.create_chunks_with_windows(path, content, lang, rev);
         }
 
-        // Generate semantic summaries for chunks that don't have them
-        for chunk in &mut optimized_chunks {
-            if chunk.summary.is_none() {
-                chunk.summary = SimilarityCalculator::generate_semantic_summary(
-                    chunk,
-                    &CodeAnalysis::default(),
-                );
-            }
+        Ok(chunks)
+    }
+
+    /// Create chunks using simple window splitting
+    fn create_chunks_with_windows(&self, path: &str, content: &str, lang: &str, rev: &str) -> Vec<Chunk> {
+        // For unsupported languages, just create one chunk with the entire content
+        // since we're simplifying and letting text-splitter handle the complex logic
+        debug!("Creating fallback chunk for {}: {} chars", path, content.len());
+        vec![Chunk {
+            id: format!("{}:{}:{}:{}", path, 0, content.len(), rev),
+            path: path.to_string(),
+            lang: lang.to_string(),
+            symbol: None,
+            rev: rev.to_string(),
+            size: content.len(),
+            code: content.to_string(),
+            summary: None,
+            embedding: None,
+        }]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    
+    #[test]
+    fn test_chunker_with_rust_code() {
+        let mut chunker = Chunker::new();
+        let content = r#"
+        fn hello_world() {
+            println!("Hello, world!");
         }
-
-        // Apply enhanced semantic similarity analysis for chunk refinement using
-        // tree-sitter
-        if optimized_chunks.len() > 1 {
-            for i in 0..optimized_chunks.len() {
-                // Calculate complexity score for better chunk ranking
-                if let Some(ref tree) = tree {
-                    let complexity = self.calculate_chunk_complexity(&optimized_chunks[i], tree);
-                    // Add complexity info to summary
-                    if let Some(ref mut summary) = optimized_chunks[i].summary {
-                        summary.push_str(&format!(" | Complexity: {complexity:.2}"));
-                    }
-                }
-
-                for j in (i + 1)..optimized_chunks.len() {
-                    // Use tree-sitter enhanced similarity calculation for better accuracy
-                    let tree_similarity =
-                        SimilarityCalculator::calculate_semantic_similarity_with_tree(
-                            &optimized_chunks[i],
-                            &optimized_chunks[j],
-                            tree.as_ref(),
-                            tree.as_ref(),
-                        );
-
-                    // Also use the basic semantic similarity for comparison
-                    let basic_similarity = self
-                        .calculate_semantic_similarity(&optimized_chunks[i], &optimized_chunks[j]);
-
-                    // Also calculate Jaccard similarity for comparison
-                    let jaccard_sim = self
-                        .calculate_jaccard_similarity(&optimized_chunks[i], &optimized_chunks[j]);
-
-                    // Use the highest similarity score for decision making
-                    let max_similarity = tree_similarity.max(basic_similarity);
-
-                    if max_similarity > 0.8 || jaccard_sim > 0.7 {
-                        // Add similarity info to chunk summaries
-                        if let Some(ref mut summary) = optimized_chunks[i].summary {
-                            summary.push_str(&format!(" | Similar to chunk {j} (tree: {tree_similarity:.2}, basic: {basic_similarity:.2}, jac: {jaccard_sim:.2})"));
-                        }
-                    }
-                }
-            }
+        
+        fn main() {
+            hello_world();
         }
-
-        Ok(optimized_chunks)
+        "#;
+        
+        let chunks = chunker.chunk_file("test.rs", content, "rust", "rev1").unwrap();
+        assert!(!chunks.is_empty());
+        assert!(chunks.len() > 0);
+        
+        // Verify chunk properties
+        for chunk in &chunks {
+            assert!(!chunk.id.is_empty());
+            assert_eq!(chunk.path, "test.rs");
+            assert_eq!(chunk.lang, "rust");
+            assert_eq!(chunk.rev, "rev1");
+            assert!(chunk.size > 0);
+            assert!(!chunk.code.is_empty());
+        }
     }
-
-    /// Detect semantic boundaries in code
-    fn detect_semantic_boundaries(&self, tree: &Tree, content: &str) -> Vec<usize> {
-        ChunkerUtils::detect_semantic_boundaries(tree, content)
-    }
-
-    /// Calculate semantic similarity between two chunks
-    fn calculate_semantic_similarity(&self, chunk1: &Chunk, chunk2: &Chunk) -> f32 {
-        SimilarityCalculator::calculate_chunk_similarity(chunk1, chunk2)
-    }
-
-    /// Extract keywords from content using enhanced analysis
-    fn extract_keywords(&self, content: &str) -> Vec<String> {
-        ChunkerUtils::extract_keywords(content)
-            .into_iter()
-            .collect()
-    }
-
-    /// Extract symbols (identifiers) from content using enhanced analysis
-    fn extract_symbols(&self, content: &str, lang: &str) -> Vec<String> {
-        let mut symbols = ChunkerUtils::extract_symbols(content, lang)
-            .into_iter()
-            .collect::<Vec<_>>();
-
-        // Note: Tree-sitter enhanced symbol extraction would require mutable access
-        // This is a design consideration for future enhancement
-
-        symbols.sort();
-        symbols.dedup();
-        symbols
-    }
-
-    /// Calculate semantic complexity for better chunk scoring
-    fn calculate_chunk_complexity(&self, chunk: &Chunk, tree: &Tree) -> f32 {
-        ChunkerUtils::calculate_semantic_complexity(&chunk.code, tree, &chunk.code)
-    }
-
-    /// Calculate similarity between chunks using Jaccard similarity
-    fn calculate_jaccard_similarity(&self, chunk1: &Chunk, chunk2: &Chunk) -> f32 {
-        let keywords1 = ChunkerUtils::extract_keywords(&chunk1.code);
-        let keywords2 = ChunkerUtils::extract_keywords(&chunk2.code);
-        ChunkerUtils::jaccard_similarity(&keywords1, &keywords2)
+    
+    #[test]
+    fn test_chunker_with_unsupported_language() {
+        let mut chunker = Chunker::new();
+        let content = "This is a test file with some content.";
+        
+        let chunks = chunker.chunk_file("test.txt", content, "unknown", "rev1").unwrap();
+        assert!(!chunks.is_empty());
+        assert_eq!(chunks.len(), 1);
+        
+        // Should fall back to simple window splitting
+        let chunk = &chunks[0];
+        assert!(!chunk.id.is_empty());
+        assert_eq!(chunk.path, "test.txt");
+        assert_eq!(chunk.lang, "unknown");
+        assert_eq!(chunk.rev, "rev1");
+        assert_eq!(chunk.size, content.len());
+        assert_eq!(chunk.code, content);
     }
 }

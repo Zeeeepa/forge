@@ -100,6 +100,7 @@ pub async fn retrieve_handler(
                 total_found: response.chunks.len(),
                 chunks: response.chunks,
                 processing_time_ms: processing_time.as_millis() as u64,
+                stats: std::collections::HashMap::new(),
             }))
         }
         Err(e) => {

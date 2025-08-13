@@ -24,11 +24,17 @@ async fn main() -> anyhow::Result<()> {
 
     info!("Starting Forge Retrieval API server");
 
-    // Create embedder (using local embedder for development)
-    let embedder = Arc::new(
-        forge_indexer::embedder::LocalEmbedder::new_default()
-            .map_err(|e| anyhow!("Failed to create local embedder: {}", e))?,
-    );
+    // Create embedder (use OpenAI if API key is set, otherwise local)
+    let embedder: Arc<dyn Embedder> = if std::env::var("OPENAI_API_KEY").is_ok() {
+        info!("Using OpenAI embedder");
+        Arc::new(forge_indexer::embedder::OpenAIEmbedder::new().await?)
+    } else {
+        info!("Using local embedder");
+        Arc::new(
+            forge_indexer::embedder::LocalEmbedder::new_default()
+                .map_err(|e| anyhow!("Failed to create local embedder: {}", e))?,
+        )
+    };
 
     // Initialize components
     let vector_dimension = embedder.embedding_dimension();

@@ -29,7 +29,14 @@ pub async fn run_indexer(args: IndexArgs) -> Result<()> {
 
     // Initialize the indexing pipeline
     info!("🔧 Initializing indexing pipeline...");
-    let mut pipeline = match IndexingPipeline::new(config).await {
+    // Increase walker limits to process more files
+    let walker = forge_walker::Walker::min_all()
+        .max_files(10000)
+        .max_depth(1024)  // Increase from default 100
+        .max_total_size(100 * 1024 * 1024)  // Increase from default 10MB
+        .max_file_size(10 * 1024 * 1024);  // Increase from default 1MB
+
+    let mut pipeline = match IndexingPipeline::new_with_walker(config, walker).await {
         Ok(pipeline) => {
             info!("✅ IndexingPipeline initialized successfully");
             pipeline

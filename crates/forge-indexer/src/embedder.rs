@@ -4,7 +4,7 @@ use std::path::Path;
 
 use anyhow::Result;
 use async_trait::async_trait;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 #[async_trait]
 pub trait Embedder: Send + Sync {
@@ -122,6 +122,7 @@ impl Embedder for OpenAIEmbedder {
         info!("OpenAI embedder processing batch of {} texts", texts.len());
 
         // Preprocess texts for better embeddings
+        info!("Preprocessing {} texts for better OpenAI embeddings", texts.len());
         let preprocessed_texts: Vec<String> = texts
             .iter()
             .map(|text| preprocess_code_for_embedding(text))
@@ -137,6 +138,7 @@ impl Embedder for OpenAIEmbedder {
         // Log text lengths for debugging
         for (i, text) in preprocessed_texts.iter().enumerate() {
             info!("Preprocessed text {}: length {}", i, text.len());
+            debug!("Preprocessed text {}: {}", i, text);
         }
 
         // Create the OpenAI API client
@@ -149,6 +151,7 @@ impl Embedder for OpenAIEmbedder {
         });
 
         info!("Sending request to OpenAI API with model: {}", self.model);
+        debug!("Request body: {}", serde_json::to_string_pretty(&request_body)?);
 
         // Send the request to OpenAI API
         let response = client
@@ -158,6 +161,8 @@ impl Embedder for OpenAIEmbedder {
             .json(&request_body)
             .send()
             .await?;
+
+        info!("Received response from OpenAI API with status: {}", response.status());
 
         // Check if the request was successful
         if !response.status().is_success() {
@@ -183,6 +188,8 @@ impl Embedder for OpenAIEmbedder {
             })
             .collect::<Result<Vec<Vec<f32>>>>()?;
 
+        // Log response details for debugging
+        debug!("OpenAI API response: {}", serde_json::to_string_pretty(&response_json)?);
         info!(
             "OpenAI API returned {} embeddings, each with {} dimensions",
             embeddings.len(),
@@ -431,10 +438,17 @@ impl Embedder for LocalEmbedder {
         );
 
         // Preprocess texts for better embeddings
+        info!("Preprocessing {} texts for better local embeddings", texts.len());
         let preprocessed_texts: Vec<String> = texts
             .iter()
             .map(|text| preprocess_code_for_embedding(text))
             .collect();
+
+        // Log text lengths for debugging
+        for (i, text) in preprocessed_texts.iter().enumerate() {
+            info!("Preprocessed text {}: length {}", i, text.len());
+            debug!("Preprocessed text {}: {}", i, text);
+        }
 
         // Generate placeholder embeddings based on preprocessed text
         let embeddings = preprocessed_texts

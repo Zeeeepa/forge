@@ -16,7 +16,7 @@ pub enum Commands {
         path: String,
 
         /// Embedder type to use (openai, local, hybrid)
-        #[arg(long, default_value = "local")]
+        #[arg(long, default_value_t = if std::env::var("OPENAI_API_KEY").is_ok() { "openai".to_string() } else { "local".to_string() })]
         embedder: String,
 
         /// OpenAI API key (required if using OpenAI embedder)
@@ -42,7 +42,7 @@ pub enum Commands {
     /// Reset the Qdrant collection (deletes all indexed data)
     Reset {
         /// Embedder type to determine vector dimensions (openai, local, hybrid)
-        #[arg(long, default_value = "local")]
+        #[arg(long, default_value_t = if std::env::var("OPENAI_API_KEY").is_ok() { "openai".to_string() } else { "local".to_string() })]
         embedder: String,
     },
 }

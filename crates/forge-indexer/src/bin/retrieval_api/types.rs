@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use forge_indexer::proto::RetrievedChunk;
+use forge_indexer::proto::Chunk;
 use serde::{Deserialize, Serialize};
 
 /// HTTP request for retrieval endpoint
@@ -23,9 +23,10 @@ fn default_k() -> usize {
 #[derive(Debug, Serialize)]
 pub struct HttpRetrievalResponse {
     pub request_id: String,
-    pub chunks: Vec<RetrievedChunk>,
+    pub chunks: Vec<Chunk>,
     pub total_found: usize,
     pub processing_time_ms: u64,
+    pub stats: HashMap<String, String>,
 }
 
 /// Error response format
