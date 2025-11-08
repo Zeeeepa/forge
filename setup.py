@@ -31,6 +31,7 @@ import urllib.error
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 from enum import Enum
+from datetime import datetime
 
 
 # ============================================================================
@@ -497,11 +498,334 @@ class EnvironmentValidator:
 # Installation Methods
 # ============================================================================
 
+class ConfigurationWizard:
+    """Interactive configuration wizard for collecting API keys and settings"""
+    
+    def __init__(self):
+        self.config = {}
+        self.env_file = Path('.env')
+        self.existing_config = {}
+        
+    def run(self) -> bool:
+        """Run the interactive configuration wizard"""
+        print_header("Configuration Wizard")
+        print_colored("Let's set up your Forge configuration!\n", Color.CYAN)
+        
+        # Check for existing .env
+        if self.env_file.exists():
+            print_info("Found existing .env file")
+            update = input("Would you like to update it? (y/n): ").strip().lower()
+            if update != 'y':
+                print_info("Keeping existing configuration")
+                return True
+            
+            # Load existing config
+            self._load_existing_config()
+        
+        # Collect required configuration
+        print("\n" + "="*70)
+        print_colored("REQUIRED CONFIGURATION", Color.YELLOW, bold=True)
+        print("="*70)
+        
+        if not self._collect_api_keys():
+            print_error("Configuration cancelled or failed")
+            return False
+        
+        # Ask about optional configuration
+        print("\n" + "="*70)
+        print_colored("OPTIONAL CONFIGURATION", Color.CYAN, bold=True)
+        print("="*70)
+        
+        configure_optional = input("\nWould you like to configure optional settings? (y/n): ").strip().lower()
+        if configure_optional == 'y':
+            self._collect_optional_settings()
+        
+        # Show summary
+        self._show_summary()
+        
+        # Confirm and save
+        save = input("\nSave this configuration? (y/n): ").strip().lower()
+        if save == 'y':
+            return self._save_configuration()
+        else:
+            print_warning("Configuration not saved")
+            return False
+    
+    def _load_existing_config(self):
+        """Load existing .env file"""
+        try:
+            with open(self.env_file, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        self.existing_config[key.strip()] = value.strip()
+        except Exception as e:
+            print_warning(f"Could not load existing config: {e}")
+    
+    def _collect_api_keys(self) -> bool:
+        """Collect API keys (at least one required)"""
+        import getpass
+        
+        print("\nForge needs at least one AI provider API key to function.")
+        print("You can add more providers later by editing .env\n")
+        
+        providers = [
+            {
+                'name': 'OpenRouter',
+                'key_var': 'OPENROUTER_API_KEY',
+                'pattern': r'^sk-or-v1-',
+                'url': 'https://openrouter.ai/keys',
+                'description': '(RECOMMENDED) Access to 300+ models with one key',
+                'recommended': True
+            },
+            {
+                'name': 'OpenAI',
+                'key_var': 'OPENAI_API_KEY',
+                'pattern': r'^sk-',
+                'url': 'https://platform.openai.com/api-keys',
+                'description': 'GPT-4o, O1, O3-mini models'
+            },
+            {
+                'name': 'Anthropic',
+                'key_var': 'ANTHROPIC_API_KEY',
+                'pattern': r'^sk-ant-',
+                'url': 'https://console.anthropic.com/',
+                'description': 'Claude 3.7 Sonnet, Claude 3.5 Opus'
+            },
+            {
+                'name': 'Google',
+                'key_var': 'GOOGLE_API_KEY',
+                'pattern': r'^[A-Za-z0-9_-]+$',
+                'url': 'https://ai.google.dev/',
+                'description': 'Gemini 2.5 Pro, Gemini 2.0 Flash'
+            }
+        ]
+        
+        # Show provider options
+        print_colored("Available Providers:", Color.CYAN, bold=True)
+        for i, provider in enumerate(providers, 1):
+            marker = " [RECOMMENDED]" if provider.get('recommended') else ""
+            print(f"{i}. {provider['name']}{marker}")
+            print(f"   {provider['description']}")
+            print(f"   Sign up: {provider['url']}")
+            print()
+        
+        # Collect API keys
+        collected_any = False
+        for provider in providers:
+            # Check if already exists
+            existing_value = self.existing_config.get(provider['key_var'])
+            if existing_value:
+                keep = input(f"Keep existing {provider['name']} API key? (y/n): ").strip().lower()
+                if keep == 'y':
+                    self.config[provider['key_var']] = existing_value
+                    print_success(f"Kept existing {provider['name']} API key")
+                    collected_any = True
+                    continue
+            
+            # Ask if user wants to configure this provider
+            configure = input(f"\nConfigure {provider['name']}? (y/n): ").strip().lower()
+            if configure != 'y':
+                continue
+            
+            # Collect API key securely
+            while True:
+                print(f"\nEnter your {provider['name']} API key")
+                print(f"(Get it from: {provider['url']})")
+                api_key = getpass.getpass("API Key (input hidden): ").strip()
+                
+                if not api_key:
+                    print_warning("No API key entered")
+                    retry = input("Try again? (y/n): ").strip().lower()
+                    if retry != 'y':
+                        break
+                    continue
+                
+                # Validate format
+                if provider.get('pattern'):
+                    import re
+                    if not re.match(provider['pattern'], api_key):
+                        print_warning(f"API key format doesn't match expected pattern for {provider['name']}")
+                        use_anyway = input("Use anyway? (y/n): ").strip().lower()
+                        if use_anyway != 'y':
+                            retry = input("Try again? (y/n): ").strip().lower()
+                            if retry != 'y':
+                                break
+                            continue
+                
+                # Save key
+                self.config[provider['key_var']] = api_key
+                print_success(f"API key saved for {provider['name']}")
+                collected_any = True
+                break
+        
+        if not collected_any:
+            print_error("\nNo API keys configured!")
+            print_warning("At least one API key is required for Forge to function")
+            retry = input("\nStart over? (y/n): ").strip().lower()
+            if retry == 'y':
+                return self._collect_api_keys()
+            return False
+        
+        return True
+    
+    def _collect_optional_settings(self):
+        """Collect optional configuration settings"""
+        print("\nConfiguring optional settings...")
+        print("(Press Enter to skip any setting)\n")
+        
+        # Model selection
+        print_colored("1. Default Model Selection", Color.CYAN)
+        print("   Choose which AI model to use by default")
+        print("   Examples: claude-3.7-sonnet, gpt-4o, gemini-2.5-pro")
+        model = input("   Model name (or Enter to skip): ").strip()
+        if model:
+            # This goes in forge.yaml, not .env
+            print_info(f"Model '{model}' will be set in forge.yaml")
+            self.config['_forge_yaml_model'] = model
+        
+        # HTTP Timeouts
+        print_colored("\n2. HTTP Timeouts (OPTIONAL)", Color.CYAN)
+        print("   Adjust network timeouts for slow connections")
+        configure_http = input("   Configure HTTP timeouts? (y/n): ").strip().lower()
+        if configure_http == 'y':
+            connect_timeout = input("   Connection timeout in seconds [30]: ").strip()
+            if connect_timeout and connect_timeout.isdigit():
+                self.config['FORGE_HTTP_CONNECT_TIMEOUT'] = connect_timeout
+            
+            read_timeout = input("   Read timeout in seconds [900]: ").strip()
+            if read_timeout and read_timeout.isdigit():
+                self.config['FORGE_HTTP_READ_TIMEOUT'] = read_timeout
+        
+        # Proxy Settings
+        print_colored("\n3. Proxy Configuration (OPTIONAL)", Color.CYAN)
+        print("   Required if behind corporate firewall")
+        configure_proxy = input("   Configure proxy? (y/n): ").strip().lower()
+        if configure_proxy == 'y':
+            http_proxy = input("   HTTP Proxy URL: ").strip()
+            if http_proxy:
+                self.config['HTTP_PROXY'] = http_proxy
+            
+            https_proxy = input("   HTTPS Proxy URL [same as HTTP]: ").strip()
+            if https_proxy:
+                self.config['HTTPS_PROXY'] = https_proxy
+            elif http_proxy:
+                self.config['HTTPS_PROXY'] = http_proxy
+        
+        # Logging Level
+        print_colored("\n4. Logging Configuration (OPTIONAL)", Color.CYAN)
+        print("   Control log verbosity: error, warn, info, debug, trace")
+        log_level = input("   Log level [info]: ").strip().lower()
+        if log_level and log_level in ['error', 'warn', 'info', 'debug', 'trace']:
+            self.config['RUST_LOG'] = log_level
+        
+        # Windows Shell
+        print_colored("\n5. Windows Shell (OPTIONAL)", Color.CYAN)
+        print("   Choose command shell: cmd (default) or powershell")
+        use_powershell = input("   Use PowerShell instead of CMD? (y/n): ").strip().lower()
+        if use_powershell == 'y':
+            self.config['SHELL'] = 'powershell'
+            self.config['COMSPEC'] = 'powershell'
+    
+    def _show_summary(self):
+        """Display configuration summary"""
+        print("\n" + "="*70)
+        print_colored("CONFIGURATION SUMMARY", Color.GREEN, bold=True)
+        print("="*70 + "\n")
+        
+        # API Keys (masked)
+        print_colored("API Keys:", Color.CYAN)
+        api_key_vars = [k for k in self.config.keys() if 'API_KEY' in k]
+        if api_key_vars:
+            for key_var in api_key_vars:
+                key_value = self.config[key_var]
+                masked = key_value[:8] + '...' + key_value[-4:] if len(key_value) > 12 else '***'
+                print(f"  {key_var}: {masked}")
+        else:
+            print("  None configured")
+        
+        # Other settings
+        other_settings = {k: v for k, v in self.config.items() if 'API_KEY' not in k and not k.startswith('_')}
+        if other_settings:
+            print_colored("\nOther Settings:", Color.CYAN)
+            for key, value in other_settings.items():
+                print(f"  {key}: {value}")
+        
+        # forge.yaml settings
+        if '_forge_yaml_model' in self.config:
+            print_colored("\nforge.yaml Settings:", Color.CYAN)
+            print(f"  model: {self.config['_forge_yaml_model']}")
+    
+    def _save_configuration(self) -> bool:
+        """Save configuration to .env and forge.yaml"""
+        try:
+            # Save .env
+            print_info("\nSaving to .env...")
+            
+            # Prepare content
+            env_content = "# Forge Configuration\n"
+            env_content += "# Generated by setup.py\n"
+            env_content += f"# {datetime.now().isoformat()}\n\n"
+            
+            # API Keys section
+            api_keys = {k: v for k, v in self.config.items() if 'API_KEY' in k}
+            if api_keys:
+                env_content += "# AI Provider API Keys\n"
+                for key, value in api_keys.items():
+                    env_content += f"{key}={value}\n"
+                env_content += "\n"
+            
+            # Other settings
+            other_settings = {k: v for k, v in self.config.items() if 'API_KEY' not in k and not k.startswith('_')}
+            if other_settings:
+                env_content += "# Additional Configuration\n"
+                for key, value in other_settings.items():
+                    env_content += f"{key}={value}\n"
+                env_content += "\n"
+            
+            # Write .env file
+            with open(self.env_file, 'w') as f:
+                f.write(env_content)
+            
+            print_success(f"Saved to {self.env_file}")
+            
+            # Save forge.yaml if model specified
+            if '_forge_yaml_model' in self.config:
+                print_info("Saving to forge.yaml...")
+                yaml_path = Path('forge.yaml')
+                
+                if yaml_path.exists():
+                    print_warning("forge.yaml already exists, skipping")
+                else:
+                    yaml_content = f"""# Forge Configuration
+model: "{self.config['_forge_yaml_model']}"
+temperature: 0.7
+
+custom_rules: |
+  1. Add comprehensive error handling
+  2. Include unit tests for new functions
+  3. Follow project coding standards
+
+max_walker_depth: 3
+"""
+                    yaml_path.write_text(yaml_content)
+                    print_success("Saved to forge.yaml")
+            
+            print_success("\n✓ Configuration saved successfully!")
+            return True
+            
+        except Exception as e:
+            print_error(f"Failed to save configuration: {e}")
+            return False
+
+
 class ForgeInstaller:
     """Main installer class with multiple installation methods"""
     
-    def __init__(self, non_interactive: bool = False):
+    def __init__(self, non_interactive: bool = False, run_wizard: bool = False):
         self.non_interactive = non_interactive
+        self.run_wizard = run_wizard
         self.validator = EnvironmentValidator()
         self.error_analyzer = ErrorAnalyzer()
     
@@ -514,6 +838,14 @@ class ForgeInstaller:
         """
         print_header("Forge Installation Wizard")
         print("AI-Enhanced Setup for Windows\n")
+        
+        # Run configuration wizard if requested
+        if self.run_wizard:
+            wizard = ConfigurationWizard()
+            wizard_success = wizard.run()
+            if not wizard_success:
+                print_warning("Configuration wizard cancelled or incomplete")
+            print_info("\nContinuing with installation...\n")
         
         # Validate environment
         if not self.validator.validate_all():
@@ -845,11 +1177,19 @@ def main():
         epilog="""
 Examples:
   python setup.py                    # Interactive setup
+  python setup.py --wizard           # Run setup with configuration wizard (RECOMMENDED)
   python setup.py --method npx       # Install via NPX
   python setup.py --method binary    # Install pre-built binary
   python setup.py --method source    # Build from source
   python setup.py --validate-only    # Check environment only
   python setup.py --non-interactive  # Automated setup
+  python setup.py --wizard --method npx  # Combined: wizard + NPX install
+
+The --wizard flag launches an interactive configuration wizard that:
+  - Collects API keys securely (input hidden)
+  - Configures optional settings (HTTP timeouts, proxy, logging, etc.)
+  - Validates inputs before saving
+  - Creates .env and forge.yaml files with your settings
 
 For more information, see INSTRUCTIONS.md
         """
@@ -873,6 +1213,12 @@ For more information, see INSTRUCTIONS.md
         help='Only validate environment without installing'
     )
     
+    parser.add_argument(
+        '--wizard',
+        action='store_true',
+        help='Run interactive configuration wizard to collect API keys and settings'
+    )
+    
     args = parser.parse_args()
     
     # Convert method string to enum
@@ -881,7 +1227,10 @@ For more information, see INSTRUCTIONS.md
         method = InstallMethod(args.method)
     
     # Create installer
-    installer = ForgeInstaller(non_interactive=args.non_interactive)
+    installer = ForgeInstaller(
+        non_interactive=args.non_interactive,
+        run_wizard=args.wizard
+    )
     
     # Validate only mode
     if args.validate_only:
@@ -904,4 +1253,3 @@ For more information, see INSTRUCTIONS.md
 
 if __name__ == "__main__":
     main()
-
