@@ -1,0 +1,267 @@
+# ==============================================================================
+# Forge Configuration - Windows Optimized
+# ==============================================================================
+# This is an example configuration file optimized for Windows users
+# Copy to 'forge.yaml' in your project directory and customize as needed
+# See: https://forgecode.dev/docs/configuration
+
+# ==============================================================================
+# Model Selection
+# ==============================================================================
+# Choose your default AI model
+# You can switch models anytime with the /model command in Forge
+
+# Recommended models:
+# - claude-3.7-sonnet (best for coding, balanced)
+# - gpt-4o (OpenAI's latest, very capable)
+# - gemini-2.5-pro (Google's latest, great reasoning)
+# - claude-3.5-haiku (fast, affordable)
+# - o3-mini-high (reasoning optimized)
+
+model: "claude-3.7-sonnet"
+
+# ==============================================================================
+# Temperature Setting
+# ==============================================================================
+# Controls creativity vs. focus
+# Range: 0.0 to 2.0
+# - 0.0 to 0.3: Very focused, deterministic (code generation, refactoring)
+# - 0.4 to 0.7: Balanced (general coding tasks)
+# - 0.8 to 1.2: Creative (brainstorming, design)
+# - 1.3 to 2.0: Very creative (experimental ideas)
+
+temperature: 0.7
+
+# ==============================================================================
+# Custom Rules
+# ==============================================================================
+# Define guidelines for AI behavior
+# These rules apply to all interactions
+
+custom_rules: |
+  1. Always include comprehensive error handling in generated code
+  2. Add unit tests for all new functions and methods
+  3. Follow Windows-specific best practices:
+     - Use Path objects for file paths (not string concatenation)
+     - Handle Windows path separators (backslash) correctly
+     - Consider Windows-specific APIs when available
+  4. Use type hints in Python code
+  5. Include docstrings for all public functions
+  6. Follow PEP 8 style guide for Python
+  7. Suggest security best practices
+  8. Optimize for readability first, performance second
+  9. Include inline comments for complex logic
+  10. Suggest relevant documentation links when appropriate
+
+# ==============================================================================
+# Custom Commands
+# ==============================================================================
+# Define shortcuts for common prompts
+# Use with: forge --command <command_name>
+
+commands:
+  # Code quality commands
+  - name: "review"
+    description: "Comprehensive code review"
+    prompt: "Review this code for:
+            1. Logic errors and bugs
+            2. Security vulnerabilities
+            3. Performance issues
+            4. Code style and readability
+            5. Best practices
+            Provide specific suggestions with code examples."
+
+  - name: "refactor"
+    description: "Refactor code for better quality"
+    prompt: "Refactor this code to improve:
+            1. Readability and maintainability
+            2. Performance
+            3. Error handling
+            4. Code organization
+            Keep functionality identical. Explain all changes."
+
+  - name: "optimize"
+    description: "Optimize code for performance"
+    prompt: "Optimize this code for performance:
+            1. Identify bottlenecks
+            2. Suggest algorithmic improvements
+            3. Reduce memory usage
+            4. Consider caching strategies
+            Benchmark before and after if possible."
+
+  # Testing commands
+  - name: "test"
+    description: "Generate comprehensive tests"
+    prompt: "Write comprehensive unit tests for this code:
+            1. Test all public functions/methods
+            2. Include edge cases and error conditions
+            3. Use appropriate test framework (pytest for Python, etc.)
+            4. Include setup and teardown as needed
+            5. Aim for >90% code coverage"
+
+  - name: "testfix"
+    description: "Fix failing tests"
+    prompt: "Analyze and fix these failing tests:
+            1. Identify root cause of failures
+            2. Fix the implementation or update tests as appropriate
+            3. Explain what was wrong
+            4. Verify all tests pass"
+
+  # Documentation commands
+  - name: "document"
+    description: "Generate documentation"
+    prompt: "Create comprehensive documentation for this code:
+            1. API documentation for all public interfaces
+            2. Usage examples with code snippets
+            3. Explanation of key concepts
+            4. Installation/setup instructions if needed
+            5. Use clear, beginner-friendly language"
+
+  - name: "readme"
+    description: "Generate/update README.md"
+    prompt: "Create or update README.md with:
+            1. Project overview and purpose
+            2. Features list
+            3. Installation instructions (Windows-specific)
+            4. Usage examples
+            5. Configuration options
+            6. Contributing guidelines
+            7. License information"
+
+  # Debugging commands
+  - name: "debug"
+    description: "Debug code issue"
+    prompt: "Help debug this code:
+            1. Analyze the error/issue
+            2. Identify root cause
+            3. Suggest multiple solutions
+            4. Explain why the issue occurred
+            5. Suggest how to prevent similar issues"
+
+  # Security commands
+  - name: "security"
+    description: "Security audit"
+    prompt: "Perform a security audit:
+            1. Identify potential security vulnerabilities
+            2. Check for common security issues (SQL injection, XSS, etc.)
+            3. Review authentication and authorization
+            4. Check for sensitive data exposure
+            5. Suggest security improvements with code examples"
+
+  # Architecture commands
+  - name: "design"
+    description: "Architecture design help"
+    prompt: "Help design the architecture:
+            1. Understand the requirements
+            2. Suggest appropriate design patterns
+            3. Design component structure
+            4. Consider scalability and maintainability
+            5. Create architecture diagrams (text-based)"
+
+# ==============================================================================
+# Directory Walker Configuration
+# ==============================================================================
+# Control how deeply Forge traverses your project structure
+# Lower values = faster, less context
+# Higher values = more context, slower
+# Range: 1 to 10
+# Recommended: 3
+
+max_walker_depth: 3
+
+# ==============================================================================
+# Safety Limits
+# ==============================================================================
+# Prevent runaway conversations and API overuse
+
+# Maximum requests per conversation turn
+# When reached, Forge will ask if you want to continue
+# Recommended: 25-100
+max_requests_per_turn: 50
+
+# Maximum tool failures before forcing completion
+# Prevents infinite retry loops
+# Recommended: 3-5
+max_tool_failure_per_turn: 3
+
+# ==============================================================================
+# Advanced Settings (Optional)
+# ==============================================================================
+# These settings are optional and use sensible defaults if not specified
+
+# Enable/disable specific tools (uncomment to use)
+# enabled_tools:
+#   - read_file
+#   - write_file
+#   - search_files
+#   - list_directory
+#   - execute_command
+#   - git_operations
+
+# Custom tool timeouts (seconds)
+# tool_timeouts:
+#   execute_command: 300
+#   search_files: 60
+
+# ==============================================================================
+# Windows-Specific Tips
+# ==============================================================================
+#
+# 1. File Paths:
+#    - Use forward slashes (/) or double backslashes (\\\\) in YAML
+#    - Example: C:/Users/YourName/project or C:\\\\Users\\\\YourName\\\\project
+#
+# 2. Environment Variables:
+#    - Set in .env file (see .env.example)
+#    - Or use Windows Environment Variables dialog
+#
+# 3. Shell Commands:
+#    - Default shell is cmd.exe
+#    - For PowerShell, set SHELL=powershell in .env
+#
+# 4. Line Endings:
+#    - Forge handles both CRLF (Windows) and LF (Unix) automatically
+#
+# 5. Permissions:
+#    - Run PowerShell as Administrator for system-level operations
+#    - Some file operations may require elevated privileges
+#
+# ==============================================================================
+# Model Selection Guide
+# ==============================================================================
+#
+# For Code Generation:
+#   - claude-3.7-sonnet (best overall)
+#   - gpt-4o (very capable)
+#   - deepseek-chat (code-specialized)
+#
+# For Fast Responses:
+#   - claude-3.5-haiku (fastest Claude)
+#   - gpt-4o-mini (fast OpenAI)
+#   - gemini-2.0-flash (fast Google)
+#
+# For Complex Reasoning:
+#   - o3-mini-high (OpenAI reasoning)
+#   - o1 (OpenAI reasoning)
+#   - claude-3.5-opus (deep analysis)
+#
+# For Cost-Effective:
+#   - claude-3.5-haiku
+#   - gpt-4o-mini
+#   - gemini-2.0-flash
+#
+# For Multimodal (images):
+#   - claude-3.7-sonnet
+#   - gpt-4o
+#   - gemini-2.5-pro
+#
+# ==============================================================================
+# Resources
+# ==============================================================================
+#
+# Documentation: https://forgecode.dev/docs
+# Discord: https://discord.gg/kRZBPpkgwq
+# GitHub: https://github.com/antinomyhq/forge
+# Model List: https://openrouter.ai/models
+#
+
